@@ -1,2 +1,5 @@
-# sim2real_rl_robotics_mldl_22
-Starting code template for the course project in sim-to-real for reinforcement learning in robotics (machine learning and deep learning 2022 course). 
+# Sim-to-Real transfer of Reinforcement Learning policies in robotics
+
+This repository contains the code template for the reinforcement learning-based course project of the MLDL course.
+
+
