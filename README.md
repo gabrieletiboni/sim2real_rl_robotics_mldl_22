@@ -2,6 +2,7 @@
 
 This repository contains the code template for the reinforcement learning-based course project of the MLDL course.
 
-TODO: list of dependencies and installation guidelines for running MuJoCo and mujoco_py locally.
+### Dependencies
+- Install MuJoCo and the python mujoco interface following the instructions here: https://github.com/openai/mujoco-py
 
 
