@@ -4,5 +4,6 @@ This repository contains the code template for the reinforcement learning-based 
 
 ### Dependencies
 - Install MuJoCo and the python mujoco interface following the instructions here: https://github.com/openai/mujoco-py
+- Install gym: `pip install gym`
 
 
