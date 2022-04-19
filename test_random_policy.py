@@ -1,4 +1,13 @@
-"""Test a random policy on the OpenAI Gym Hopper environment"""
+"""Test a random policy on the OpenAI Gym Hopper environment
+
+Play around with this code to get familiar with the
+Hopper environment.
+
+For example, what happens if you don't reset the environment
+even after the episode is over?
+When exactly is the episode over?
+What is an action here?
+"""
 
 import gym
 from env.custom_hopper import *

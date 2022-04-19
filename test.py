@@ -1,15 +1,18 @@
 """Test an RL agent on the OpenAI Gym Hopper environment"""
 
+import torch
 import gym
 import argparse
 
 from env.custom_hopper import *
+from agent import Agent, Policy
 
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', default=None, type=str, help='Model path')
     parser.add_argument('--device', default='cpu', type=str, help='network device [cpu, cuda]')
     parser.add_argument('--render', default=False, action='store_true', help='Render the simulator')
+    parser.add_argument('--episodes', default=10, type=int, help='Number of test episodes')
 
     return parser.parse_args()
 
@@ -33,7 +36,7 @@ def main():
 
 	agent = Agent(policy, device=args.device)
 
-	for episode in range(episodes):
+	for episode in range(args.episodes):
 	    done = False
 	    test_reward = 0
 	    state = env.reset()
