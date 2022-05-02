@@ -3,14 +3,13 @@
 TODO: implement 2.2.a and 2.2.b
 """
 
-from operator import contains
 from unittest.mock import Base
 import torch
 import gym
 import argparse
 
 from env.custom_hopper import *
-from agent import Agent, Policy
+from agent import Agent, Policy, Baseline
 
 
 def parse_args():
@@ -49,7 +48,8 @@ def main():
     action_space_dim = env.action_space.shape[-1]
 
     policy = Policy(observation_space_dim, action_space_dim)
-    agent = Agent(policy, device=args.device)
+    baseline = Baseline(observation_space_dim)
+    agent = Agent(policy, baseline, device=args.device)
 
     for episode in range(args.n_episodes):
         done = False
@@ -58,13 +58,13 @@ def main():
 
         while not done:  # Loop until the episode is over
 
-            action, action_probabilities, value = agent.get_action(state)
+            action, action_probabilities = agent.get_action(state)
             previous_state = state
 
             state, reward, done, info = env.step(action.detach().cpu().numpy())
 
             agent.store_outcome(
-                previous_state, state, action_probabilities, reward, done, value
+                previous_state, state, action_probabilities, reward, done
             )
 
             train_reward += reward

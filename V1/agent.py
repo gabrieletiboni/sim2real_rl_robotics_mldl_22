@@ -29,9 +29,6 @@ class Policy(torch.nn.Module):
             Critic network
         """
         # TODO 2.2.b: critic network for actor-critic algorithm
-        self.fc1_critic = torch.nn.Linear(state_space, 256)
-        self.fc2_critic = torch.nn.Linear(256, 256)
-        self.output_critic = torch.nn.Linear(256, 1)
 
         self.init_weights()
 
@@ -56,36 +53,50 @@ class Policy(torch.nn.Module):
             Critic
         """
         # TODO 2.2.b: forward in the critic network
-        x_critic = torch.clamp(x, -1.1, 1.1)
-        x_critic = F.relu(self.fc1_critic(x_critic))
-        x_critic = F.relu(self.fc2_critic(x_critic))
-        value = self.output_critic(x_critic)
 
-        return normal_dist, value
+        return normal_dist
+
+
+# The baselineNet used to compute a baseline for the REINFORCE algorithm
+class Baseline(torch.nn.Module):
+    def __init__(self, state_size, hidden_size=256):
+        super().__init__()
+        self.dense_layer_1 = torch.nn.Linear(state_size, hidden_size)
+        self.dense_layer_2 = torch.nn.Linear(hidden_size, hidden_size)
+        self.output = torch.nn.Linear(hidden_size, 1)
+
+    def forward(self, x):
+        x = torch.clamp(x, -1.1, 1.1)
+        x = F.relu(self.dense_layer_1(x))
+        x = F.relu(self.dense_layer_2(x))
+        return self.output(x).squeeze(1)
 
 
 class Agent(object):
-    def __init__(self, policy, device="cpu"):
+    def __init__(self, policy, baseline, device="cpu"):
         self.train_device = device
         self.policy = policy.to(self.train_device)
+        self.baseline = baseline.to(self.train_device)
         self.optimizer = torch.optim.Adam(policy.parameters(), lr=1e-3)
+        self.bsoptimizer = torch.optim.Adam(baseline.parameters(), lr=1e-3)
 
         self.gamma = 0.99
-        self.entropy_term = 0
         self.states = []
         self.next_states = []
         self.action_log_probs = []
         self.rewards = []
         self.done = []
-        self.values = []
 
     def update_policy(self):
-        action_log_probs = (torch.stack(self.action_log_probs, dim=0).to(self.train_device).squeeze(-1))
+        action_log_probs = (
+            torch.stack(self.action_log_probs, dim=0).to(self.train_device).squeeze(-1)
+        )
         states = torch.stack(self.states, dim=0).to(self.train_device).squeeze(-1)
-        next_states = (torch.stack(self.next_states, dim=0).to(self.train_device).squeeze(-1))
+        next_states = (
+            torch.stack(self.next_states, dim=0).to(self.train_device).squeeze(-1)
+        )
         rewards = torch.stack(self.rewards, dim=0).to(self.train_device).squeeze(-1)
         done = torch.Tensor(self.done).to(self.train_device)
-        values = (torch.stack(self.values, dim=0).to(self.train_device).squeeze(-1))
 
         #
         # TODO 2.2.a:
@@ -105,7 +116,9 @@ class Agent(object):
                 pw = pw + 1
             discounted_rewards.append(d_r)
 
-        discounted_rewards = torch.tensor(discounted_rewards, dtype=torch.float32, device=self.train_device)
+        discounted_rewards = torch.tensor(
+            discounted_rewards, dtype=torch.float32, device=self.train_device
+        )
 
         # REINFORCE LOSS
         # `discounted_rewards = (discounted_rewards - torch.mean(discounted_rewards)) / (torch.std(discounted_rewards))
@@ -113,33 +126,38 @@ class Agent(object):
         # self.policy.zero_grad()
         # policy_gradient.sum().backward()
         # self.optimizer.step()
-        
+
+        # REINFORCE BASELINE LOSS
+        dsr_estimates = self.baseline(states).to(self.train_device)
+
+        with torch.no_grad():
+            advantages = discounted_rewards - dsr_estimates
+
+        actor_loss = torch.mean(-action_log_probs * advantages)
+        self.optimizer.zero_grad()
+        actor_loss.backward()
+        self.optimizer.step()
+
+        baseline_loss_fn = torch.nn.MSELoss()
+        baseline_loss = baseline_loss_fn(dsr_estimates, discounted_rewards)
+        self.bsoptimizer.zero_grad()
+        baseline_loss.backward()
+        self.bsoptimizer.step()
+
+        #
         # TODO 2.2.b:
         #             - compute boostrapped discounted return estimates
         #             - compute advantage terms
         #             - compute actor loss and critic loss
         #             - compute gradients and step the optimizer
-
-        with torch.no_grad():
-            advantages = discounted_rewards - values
-            
-        advantages = (advantages-torch.mean(advantages)+1e-12)/torch.std(advantages)
-
-        actor_loss = torch.mean(-action_log_probs*advantages)
-        critic_loss_fn = torch.nn.MSELoss()
-        critic_loss = critic_loss_fn(values, discounted_rewards)
-        ac_loss = actor_loss + critic_loss + 0.001 * self.entropy_term
-
-        self.optimizer.zero_grad()
-        ac_loss.backward()
-        self.optimizer.step()
+        #
 
         return
 
     def get_action(self, state, evaluation=False):
         x = torch.from_numpy(state).float().to(self.train_device)
 
-        normal_dist, value = self.policy(x)
+        normal_dist = self.policy(x)
 
         if evaluation:  # Return mean
             return normal_dist.mean, None
@@ -149,18 +167,15 @@ class Agent(object):
 
             # Compute Log probability of the action [ log(p(a[0] AND a[1] AND a[2])) = log(p(a[0])*p(a[1])*p(a[2])) = log(p(a[0])) + log(p(a[1])) + log(p(a[2])) ]
             action_log_prob = normal_dist.log_prob(action).sum()
-            entropy = -torch.sum(normal_dist.mean*action_log_prob).detach().numpy()
-            self.entropy_term += entropy
 
-            return action, action_log_prob, value
+            return action, action_log_prob
 
-    def store_outcome(self, state, next_state, action_log_prob, reward, done, value):
+    def store_outcome(self, state, next_state, action_log_prob, reward, done):
         self.states.append(torch.from_numpy(state).float())
         self.next_states.append(torch.from_numpy(next_state).float())
         self.action_log_probs.append(action_log_prob)
         self.rewards.append(torch.Tensor([reward]))
         self.done.append(done)
-        self.values.append(value)
 
     def reset_outcomes(self):
         self.states = []
@@ -168,9 +183,3 @@ class Agent(object):
         self.action_log_probs = []
         self.rewards = []
         self.done = []
-        self.values = []
-
-
-
-#TODO Domande da fare:
-# - Cambia qualcosa imparare da uno state alla volta piuttosto che da tutti gli states assieme?

@@ -15,29 +15,29 @@ from env.custom_hopper import *
 
 def main():
 
-	env = gym.make('CustomHopper-source-v0')
+    env = gym.make('CustomHopper-source-v0')
 
-	print('State space:', env.observation_space)
-	print('Action space:', env.action_space)
-	print('Dynamics parameters:', env.get_parameters())
+    print('State space:', env.observation_space)
+    print('Action space:', env.action_space)
+    print('Dynamics parameters:', env.get_parameters())
 
-	n_episodes = 500
-	render = True
+    n_episodes = 500
+    render = True
 
-	for episode in range(n_episodes):
-		done = False
-		observation = env.reset()	# Reset environment to initial state
+    for episode in range(n_episodes):
+        done = False
+        observation = env.reset()  # Reset environment to initial state
 
-		while not done:  # Until the episode is over
+        while not done:  # Until the episode is over
 
-			action = env.action_space.sample()	# Sample random action
-		
-			observation, reward, done, info = env.step(action)	# Step the simulator to the next timestep
+            action = env.action_space.sample()  # Sample random action
 
-			if render:
-				env.render()
+            # Step the simulator to the next timestep
+            observation, reward, done, info = env.step(action)
 
-	
+            if render:
+                env.render()
+
 
 if __name__ == '__main__':
-	main()
+    main()
