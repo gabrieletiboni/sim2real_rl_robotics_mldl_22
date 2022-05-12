@@ -56,7 +56,7 @@ class Policy(torch.nn.Module):
             Critic
         """
         # TODO 2.2.b: forward in the critic network
-        x_critic = torch.clamp(x, -1.1, 1.1)
+        #x_critic = torch.clamp(x, -1.1, 1.1)
         x_critic = F.relu(self.fc1_critic(x_critic))
         x_critic = F.relu(self.fc2_critic(x_critic))
         value = self.output_critic(x_critic)
@@ -107,12 +107,7 @@ class Agent(object):
 
         discounted_rewards = torch.tensor(discounted_rewards, dtype=torch.float32, device=self.train_device)
 
-        # REINFORCE LOSS
-        # `discounted_rewards = (discounted_rewards - torch.mean(discounted_rewards)) / (torch.std(discounted_rewards))
-        # `policy_gradient = -action_log_probs * discounted_rewards
-        # self.policy.zero_grad()
-        # policy_gradient.sum().backward()
-        # self.optimizer.step()
+        #Could update after x steps and that might help better
         
         # TODO 2.2.b:
         #             - compute boostrapped discounted return estimates
@@ -126,9 +121,17 @@ class Agent(object):
         advantages = (advantages-torch.mean(advantages)+1e-12)/torch.std(advantages)
 
         actor_loss = torch.mean(-action_log_probs*advantages)
+
+        # TODO
+        # This is not actor critivs because the advantage is actually baseline estimation and discounted rewards estimation
+        # To estimate the discounted rewards is not the actual ones but the estimated ones
+        # Use critic to estimate the next step return, don't use the experienced one, bootstrapping is missing
+        # estimated_G_t = R_t + gamma*critic(s_t+1) / G_t = R_t + gamma*(G_t+1)
+        # step the critic separatrely from the actor
+
         critic_loss_fn = torch.nn.MSELoss()
         critic_loss = critic_loss_fn(values, discounted_rewards)
-        ac_loss = actor_loss + critic_loss + 0.001 * self.entropy_term
+        ac_loss = actor_loss + critic_loss + 0.001 * self.entropy_term #Entropy is not something i have to add, understand before implementing
 
         self.optimizer.zero_grad()
         ac_loss.backward()

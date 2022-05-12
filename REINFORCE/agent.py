@@ -126,6 +126,8 @@ class Agent(object):
         # self.policy.zero_grad()
         # policy_gradient.sum().backward()
         # self.optimizer.step()
+        
+        #Report both on the final table
 
         # REINFORCE BASELINE LOSS
         dsr_estimates = self.baseline(states).to(self.train_device)
