@@ -6,7 +6,6 @@ import argparse
 from stable_baselines3 import PPO
 
 from env.custom_hopper import *
-from agent import Agent, Policy
 
 
 def parse_args():
