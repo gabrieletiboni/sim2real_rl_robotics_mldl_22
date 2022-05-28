@@ -16,10 +16,14 @@ class CustomHopper(MujocoEnv, utils.EzPickle):
         utils.EzPickle.__init__(self)
 
         self.original_masses = np.copy(self.sim.model.body_mass[1:])    # Default link masses
+        self.domain = domain
 
         if domain == 'source':  # Source environment has an imprecise torso mass (1kg shift)
             self.sim.model.body_mass[1] -= 1.0
-
+        
+        if domain == 'udr':  # Source environment has an imprecise torso mass (1kg shift)
+            self.sim.model.body_mass[1] -= 1.0
+            self.set_random_parameters()
 
     def set_random_parameters(self):
         """Set random masses
@@ -30,8 +34,14 @@ class CustomHopper(MujocoEnv, utils.EzPickle):
     def sample_parameters(self):
         """Sample masses according to a domain randomization distribution
         TODO
+            - The weights to edit are thigh, leg and foot
+            - I have to randomize the variation for body mass [2:]
         """
-        return
+        self.dist = truncnorm(-1,1)
+        random_parameters = []
+        random_parameters.append(self.original_masses[0])
+        for x in self.original_masses[1:] : random_parameters.append(x + self.dist.rvs()) 
+        return random_parameters
 
     def get_parameters(self):
         """Get value of mass for each link"""
@@ -75,6 +85,8 @@ class CustomHopper(MujocoEnv, utils.EzPickle):
         qpos = self.init_qpos + self.np_random.uniform(low=-.005, high=.005, size=self.model.nq)
         qvel = self.init_qvel + self.np_random.uniform(low=-.005, high=.005, size=self.model.nv)
         self.set_state(qpos, qvel)
+        if self.domain == "udr": self.set_random_parameters()
+
         return self._get_obs()
 
     def viewer_setup(self):
@@ -132,5 +144,12 @@ gym.envs.register(
         entry_point="%s:CustomHopper" % __name__,
         max_episode_steps=500,
         kwargs={"domain": "target"}
+)
+
+gym.envs.register(
+        id="CustomHopper-bayrn-v0",
+        entry_point="%s:CustomHopper" % __name__,
+        max_episode_steps=500,
+        kwargs={"domain": "bayrn"}
 )
 
