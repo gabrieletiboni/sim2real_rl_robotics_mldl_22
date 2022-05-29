@@ -1,0 +1,8 @@
+gym
+mujoco_py
+torch
+botorch
+numpy
+scipy
+sb3_contrib
+stable_baselines3

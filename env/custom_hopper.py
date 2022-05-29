@@ -147,9 +147,9 @@ gym.envs.register(
 )
 
 gym.envs.register(
-        id="CustomHopper-bayrn-v0",
+        id="CustomHopper-udr-v0",
         entry_point="%s:CustomHopper" % __name__,
         max_episode_steps=500,
-        kwargs={"domain": "bayrn"}
+        kwargs={"domain": "udr"}
 )
 

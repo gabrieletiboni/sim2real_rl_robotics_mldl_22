@@ -1,10 +1,13 @@
 from env.custom_hopper import CustomHopper
 from scipy.stats import truncnorm
 import gym
+import torch
+import numpy as np
 
-env = gym.make("CustomHopper-bayrn-v0")
-customhopper = env.
+env = gym.make("CustomHopper-source-v0")
 
-for i in range(100):
-    print(customhopper.get_parameters())
-    customhopper.reset_model()
+tensor = torch.from_numpy(np.array([[1,1,1,1,1,1]]))
+
+a = list(tensor.numpy())
+
+thigha, thighb, lega, legb, foota, footb = a[0]
