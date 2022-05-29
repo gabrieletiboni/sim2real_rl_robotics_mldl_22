@@ -27,8 +27,6 @@ def main():
     else:
         env = gym.make('CustomHopper-target-v0')
 
-    print("Dynamics parameters:", env.get_parameters())
-
     obs = env.reset()
     totalreward = 0
     allrewards = []

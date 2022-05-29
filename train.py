@@ -36,12 +36,12 @@ class DomainParametersDistributions():
         self.thigha, self.thighb = env.env.get_parameters()[1]-1, env.env.get_parameters()[1]+1
         self.lega, self.legb = env.env.get_parameters()[2]-1, env.env.get_parameters()[2]-1+1
         self.foota, self.footb = env.env.get_parameters()[3]-1, env.env.get_parameters()[3]+1
-        self.jreals = []
+        self.jreals = torch.empty((1,1), dtype=torch.double)
 
     def initialization_phase(self, n_params):
-        self.domain_distr_param = []
+        self.domain_distr_param = torch.empty((1,6), dtype=torch.double)
         env_params = []
-        ab_norm = truncnorm(-0.5,0.5)
+        ab_norm = truncnorm(-1,1)
 
         for _ in range(n_params):
 
@@ -53,30 +53,33 @@ class DomainParametersDistributions():
             legval = uniform(lega, legb).rvs()
             footval = uniform(foota, footb).rvs()
 
-            self.domain_distr_param.append([thigha, thighb, lega, legb, foota, footb])
+            torch.cat((self.domain_distr_param, torch.tensor([[thigha, thighb, lega, legb, foota, footb]], dtype=torch.double)), dim=0)
             env_params.append(np.array([self.torso_mass, thighval, legval, footval], dtype=np.float32))
 
         return env_params
 
     def fit_gaussian(self):
-        self.gp = botorch.models.SingleTaskGP(torch.from_numpy(np.array(self.domain_distr_param, dtype=np.float32)), torch.from_numpy(np.array(self.jreals, dtype=np.float32))) #Uses a matern kernel by default
+        self.gp = botorch.models.SingleTaskGP(self.domain_distr_param, self.jreals) #Uses a matern kernel by default
         self.mll = gpytorch.mlls.ExactMarginalLogLikelihood(self.gp.likelihood, self.gp)
         botorch.fit.fit_gpytorch_model(self.mll)
         #Acquisition function
+
         self.UCB = botorch.acquisition.UpperConfidenceBound(self.gp, beta = 0.1)
 
     def optimize_acq(self):
         # Source domain base params [2.53429174 3.92699082 2.71433605 5.0893801 ]
-        bounds = torch.tensor([[2.,4.,1.,3.,2.,5.],[4.,8.,2.5,5.,4.,7.]])
-        candidate, acq_value = botorch.optim.optimize_acqf(self.UCB, bounds=bounds, q=1, num_restarts=5, raw_samples=10)
-        self.domain_distr_param.append(list(candidate.numpy()[0]))
+        bounds = torch.tensor([[2.,4.,1.,3.,2.,5.],[4.,8.,2.5,5.,4.,7.]], dtype=torch.double)
+        #bounds = torch.tensor([[0.25,0.25,0.25,0.25,0.25,0.25],[10,10,10,10,10,10]], dtype=torch.double)
+
+        candidate, _ = botorch.optim.optimize_acqf(self.UCB, bounds=bounds, q=1, num_restarts=200, raw_samples=512)
+        torch.cat((self.domain_distr_param,candidate), dim=0)
 
         return list(candidate.numpy()[0])
 
         # The output is tensor([[2.6634, 8.2721, 1.9408, 5.6605, 1.5373, 6.8326]]) so a list of ranges in the format a,b,a,b,a,b
 
     def update_jreal(self, jreal):
-        self.jreals.append([jreal])
+        torch.cat((self.jreals,torch.tensor([[jreal]], dtype=torch.double)),dim=0)
 
     def get_env_params(self):
 
@@ -122,7 +125,7 @@ def main():
     policy = TRPO('MlpPolicy', env, verbose = 0)
 
     #Initialization
-    init_steps = 5
+    init_steps = 10
     init_env_params = domain_dist_params.initialization_phase(init_steps)
 
     for i in range(init_steps):
@@ -130,27 +133,31 @@ def main():
         policy.learn(total_timesteps = 10000)
         Jreal = target_domain_return(n=5, target_env=target_env, policy=policy)
         domain_dist_params.update_jreal(Jreal)
-        print(f"Initial sampling {i}")
+        print(f"Initial sampling {i+1}")
 
     domain_dist_params.fit_gaussian()
 
     print("Begin Training")
     
-    for _ in range(30):
+    for _ in range(90):
 
         env.env.set_parameters(*domain_dist_params.get_env_params())
 
         policy.learn(total_timesteps = 10000)
 
         Jreal = target_domain_return(n=5, target_env=target_env, policy=policy)
-        print(f"Return on real world for iteration {_}: {Jreal}")
+        print(f"Return on real world for iteration {_+1}: {Jreal}")
 
         domain_dist_params.update_jreal(Jreal)
         domain_dist_params.fit_gaussian()
 
 
-    policy.save("trpo_bayrn_model.mdl")
+    policy.save("trpo_bayrn_model_v3.mdl")
 
 
 if __name__ == "__main__":
     main()
+
+
+# TODO Questions
+# Ask about "RuntimeError: 30 elements of the 30 element gradient array `gradf` are NaN. This often indicates numerical issues. Consider using `dtype=torch.double`."

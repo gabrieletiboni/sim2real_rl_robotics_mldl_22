@@ -6,7 +6,14 @@ import numpy as np
 
 env = gym.make("CustomHopper-source-v0")
 
-tensor = torch.from_numpy(np.array([[1,1,1,1,1,1]]))
+tensor0 = torch.empty((1,6), dtype=torch.double)
+tensor = torch.tensor([[1,1,1,1,1,1]], dtype=torch.double)
+tensor2 = torch.tensor([1,1,2,1,1,1], dtype=torch.double)
+
+tensor = torch.cat((tensor0, tensor), dim=0)
+tensor = torch.cat((tensor, tensor2), dim=0)
+
+print(tensor)
 
 a = list(tensor.numpy())
 
