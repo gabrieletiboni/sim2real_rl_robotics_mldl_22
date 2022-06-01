@@ -68,7 +68,9 @@ class DomainParametersDistributions():
 
     def optimize_acq(self):
         # Source domain base params [2.53429174 3.92699082 2.71433605 5.0893801 ]
+        
         bounds = torch.tensor([[2.,4.,1.,3.,2.,5.],[4.,8.,2.5,5.,4.,7.]], dtype=torch.double)
+        
         #bounds = torch.tensor([[0.25,0.25,0.25,0.25,0.25,0.25],[10,10,10,10,10,10]], dtype=torch.double)
 
         candidate, _ = botorch.optim.optimize_acqf(self.UCB, bounds=bounds, q=1, num_restarts=200, raw_samples=512)
@@ -103,6 +105,9 @@ class DomainParametersDistributions():
 # Test different hyperparameters and bounds
 # Implement other things if we want
 # test 
+# Go on stable-baseline webside and implement a custom callback function to do some logging
+# Use callbacks to save the best performiong model
+
 
 
 def main():
@@ -157,7 +162,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-# TODO Questions
-# Ask about "RuntimeError: 30 elements of the 30 element gradient array `gradf` are NaN. This often indicates numerical issues. Consider using `dtype=torch.double`."
