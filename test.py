@@ -13,7 +13,7 @@ def parse_args():
     parser.add_argument("--model", default=None, type=str, help="Model path")
     parser.add_argument("--render", default=False, action="store_true", help="Render the simulator")
     parser.add_argument("--episodes", default=50, type=int, help="Number of test episodes")
-    parser.add_argument("--targetenv", default=False, action="store_true")
+    parser.add_argument("--env", default=False)
     return parser.parse_args()
 
 
@@ -22,9 +22,11 @@ args = parse_args()
 
 def main():
 
-    if args.targetenv == False:
+    if args.env == False:
         env = gym.make("CustomHopper-source-v0")
-    else:
+    elif args.env == 'udr':
+        env = gym.make('CustomHopper-udr-v0')
+    elif args.env == 'target':
         env = gym.make('CustomHopper-target-v0')
 
     obs = env.reset()

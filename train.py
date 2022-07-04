@@ -7,6 +7,10 @@ import numpy as np
 from scipy.stats import norm
 from scipy.stats import uniform
 import gpytorch
+from stable_baselines3.common.callbacks import BaseCallback
+import os
+from stable_baselines3.common.monitor import Monitor
+import datetime
 
 def target_domain_return(n, target_env, policy):
     env = target_env
@@ -29,6 +33,22 @@ def target_domain_return(n, target_env, policy):
     
     return np.mean(allrewards)
 
+class CustomCallback(BaseCallback):
+
+    def __init__(self, log_dir, verbose=1):
+        super(CustomCallback, self).__init__(verbose)
+        self.log_dir = log_dir
+
+    def _on_rollout_end(self) -> None:
+
+        pass
+
+    def _on_training_end(self) -> None:
+        """
+        This event is triggered before exiting the `learn()` method.
+        """
+        pass
+
 
 class DomainParametersDistributions():
     def __init__(self, env: gym.Env) -> None:
@@ -37,6 +57,7 @@ class DomainParametersDistributions():
         self.lega, self.legb = env.env.get_parameters()[2]-1, env.env.get_parameters()[2]-1+1
         self.foota, self.footb = env.env.get_parameters()[3]-1, env.env.get_parameters()[3]+1
         self.jreals = torch.empty((1,1), dtype=torch.double)
+        self.bounds = torch.tensor([[2.,4.,1.,3.,2.,5.],[4.,8.,2.5,5.,4.,7.]], dtype=torch.double)
 
     def initialization_phase(self, n_params):
         self.domain_distr_param = torch.empty((1,6), dtype=torch.double)
@@ -68,10 +89,10 @@ class DomainParametersDistributions():
 
     def optimize_acq(self):
         # Source domain base params [2.53429174 3.92699082 2.71433605 5.0893801 ]
-        bounds = torch.tensor([[2.,4.,1.,3.,2.,5.],[4.,8.,2.5,5.,4.,7.]], dtype=torch.double)
+        
         #bounds = torch.tensor([[0.25,0.25,0.25,0.25,0.25,0.25],[10,10,10,10,10,10]], dtype=torch.double)
 
-        candidate, _ = botorch.optim.optimize_acqf(self.UCB, bounds=bounds, q=1, num_restarts=200, raw_samples=512)
+        candidate, _ = botorch.optim.optimize_acqf(self.UCB, bounds=self.bounds, q=1, num_restarts=200, raw_samples=512)
         torch.cat((self.domain_distr_param,candidate), dim=0)
 
         return list(candidate.numpy()[0])
@@ -107,52 +128,69 @@ class DomainParametersDistributions():
 
 def main():
 
-    env = gym.make("CustomHopper-source-v0")
-    target_env = gym.make("CustomHopper-target-v0")
+    init_steps_t = [5,10]
+    total_timesteps_t = [5000,10000,20000]
+    learning_rate_t = [0.001,0.01]
+    # We can add gamma
 
-    domain_dist_params = DomainParametersDistributions(env)
+    for (init_steps, total_timesteps, learning_rate) in [(a,b,c) for a in init_steps_t for b in total_timesteps_t for c in learning_rate_t]:
 
-    print("Action space:", env.action_space)
-    print("State space:", env.observation_space)
-    print("Dynamics parameters:", env.get_parameters())
+        now = datetime.datetime.now().strftime('%Y%m%d-%H%M')
+        log_dir = f"logs/{now}-{init_steps}-{total_timesteps}-{learning_rate}/"
+        log_source = log_dir+"source/"
+        log_target = log_dir+"target/"
 
-    torch.device("cpu")
+        os.makedirs(log_dir, exist_ok=True)
+        os.makedirs(log_source, exist_ok=True)
+        os.makedirs(log_target, exist_ok=True)
 
-    """
-		Training
-	"""
+        env = gym.make("CustomHopper-source-v0")
+        target_env = gym.make("CustomHopper-target-v0")
 
-    policy = TRPO('MlpPolicy', env, verbose = 0)
+        env = Monitor(env, log_source)
+        target_env = Monitor(target_env, log_target)
 
-    #Initialization
-    init_steps = 10
-    init_env_params = domain_dist_params.initialization_phase(init_steps)
+        domain_dist_params = DomainParametersDistributions(env)
 
-    for i in range(init_steps):
-        env.env.set_parameters(*init_env_params[i])
-        policy.learn(total_timesteps = 10000)
-        Jreal = target_domain_return(n=5, target_env=target_env, policy=policy)
-        domain_dist_params.update_jreal(Jreal)
-        print(f"Initial sampling {i+1}")
+        torch.device("cpu")
 
-    domain_dist_params.fit_gaussian()
+        """
+            Training
+        """
 
-    print("Begin Training")
-    
-    for _ in range(90):
+        policy = TRPO('MlpPolicy', env, verbose = 1, seed = 42, learning_rate=learning_rate)
 
-        env.env.set_parameters(*domain_dist_params.get_env_params())
+        #Initialization
+        init_steps = 5
+        init_env_params = domain_dist_params.initialization_phase(init_steps)
 
-        policy.learn(total_timesteps = 10000)
+        #callback = CustomCallback(log_dir)
 
-        Jreal = target_domain_return(n=5, target_env=target_env, policy=policy)
-        print(f"Return on real world for iteration {_+1}: {Jreal}")
+        for i in range(init_steps):
+            env.env.set_parameters(*init_env_params[i])
+            policy.learn(total_timesteps = total_timesteps)
+            Jreal = target_domain_return(n=1, target_env=target_env, policy=policy)
+            domain_dist_params.update_jreal(Jreal)
+            print(f"Initial sampling {i+1}")
 
-        domain_dist_params.update_jreal(Jreal)
         domain_dist_params.fit_gaussian()
 
+        print("Begin Training")
+        
+        for _ in range(45):
 
-    policy.save("trpo_bayrn_model_v3.mdl")
+            env.env.set_parameters(*domain_dist_params.get_env_params())
+
+            policy.learn(total_timesteps = total_timesteps)
+
+            Jreal = target_domain_return(n=1, target_env=target_env, policy=policy)
+            print(f"Return on real world for iteration {_+1}: {Jreal}")
+
+            domain_dist_params.update_jreal(Jreal)
+            domain_dist_params.fit_gaussian()
+
+
+        policy.save(f"past_models_bayrn/trpo_bayrn_model-{init_steps}-{total_timesteps}-{learning_rate}-{Jreal}.mdl")
 
 
 if __name__ == "__main__":
