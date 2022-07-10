@@ -1,3 +1,4 @@
+from tabnanny import verbose
 import gym
 from sb3_contrib import TRPO
 import botorch
@@ -12,6 +13,7 @@ import os
 from stable_baselines3.common.monitor import Monitor
 import datetime
 from itertools import product
+from scipy.stats import truncnorm
 
 def target_domain_return(n, target_env, policy):
     env = target_env
@@ -36,9 +38,9 @@ def target_domain_return(n, target_env, policy):
 
 class CustomCallback(BaseCallback):
 
-    def __init__(self, log_dir, verbose=1):
+    def __init__(self, domainparameterdist, verbose=1):
         super(CustomCallback, self).__init__(verbose)
-        self.log_dir = log_dir
+        self.domainparameterdist = domainparameterdist
 
     def _on_rollout_end(self) -> None:
 
@@ -148,10 +150,9 @@ def main():
     learning_rate_t = [0.01]
     # We can add gamma
 
-    # torch.tensor([[2.,4.,1.,3.,2.,5.],[4.,8.,2.5,5.,4.,7.]], dtype=torch.double)
-
+    bounds_t  = [torch.tensor([[2.,4.,1.,3.,2.,5.],[4.,8.,2.5,5.,4.,7.]], dtype=torch.double)]
     # Source domain base params [3.92699082 2.71433605 5.0893801 ]
-    bounds_t = [torch.tensor([bound(True, 0.2),bound(False, 1.8)], dtype=torch.double)]
+    #bounds_t = [torch.tensor([bound(True, 0.2),bound(False, 1.8)], dtype=torch.double)]
 
     k=0 
 
@@ -171,8 +172,8 @@ def main():
         env = gym.make("CustomHopper-source-v0")
         target_env = gym.make("CustomHopper-target-v0")
 
-        env = Monitor(env, log_source)
-        target_env = Monitor(target_env, log_target)
+        #env = Monitor(env, log_source)
+        #target_env = Monitor(target_env, log_target)
 
         domain_dist_params = DomainParametersDistributions(env, bounds)
 
@@ -180,7 +181,7 @@ def main():
             Training
         """
 
-        policy = TRPO('MlpPolicy', env, verbose = 1, seed = 42, learning_rate=learning_rate)
+        policy = TRPO('MlpPolicy', env, verbose = 0, seed = 42, learning_rate=learning_rate)
 
         #Initialization
         init_env_params = domain_dist_params.initialization_phase(init_steps)

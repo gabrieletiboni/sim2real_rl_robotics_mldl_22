@@ -8,7 +8,7 @@ import numpy as np
 import gym
 from gym import utils
 from .mujoco_env import MujocoEnv
-from scipy.stats import truncnorm
+from scipy.stats import uniform
 
 class CustomHopper(MujocoEnv, utils.EzPickle):
     def __init__(self, domain=None):
@@ -17,6 +17,7 @@ class CustomHopper(MujocoEnv, utils.EzPickle):
 
         self.original_masses = np.copy(self.sim.model.body_mass[1:])    # Default link masses
         self.domain = domain
+        self.uniforms = [uniform(3.4,4.5), uniform(2.5,3.5), uniform(4.5,5.5)]
 
         if domain == 'source':  # Source environment has an imprecise torso mass (1kg shift)
             self.sim.model.body_mass[1] -= 1.0
@@ -26,21 +27,12 @@ class CustomHopper(MujocoEnv, utils.EzPickle):
             self.set_random_parameters()
 
     def set_random_parameters(self):
-        """Set random masses
-        TODO
-        """
         self.set_parameters(*self.sample_parameters())
 
     def sample_parameters(self):
-        """Sample masses according to a domain randomization distribution
-        TODO
-            - The weights to edit are thigh, leg and foot
-            - I have to randomize the variation for body mass [2:]
-        """
-        self.dist = truncnorm(-1,1)
         random_parameters = []
         random_parameters.append(self.original_masses[0])
-        for x in self.original_masses[1:] : random_parameters.append(x + self.dist.rvs()) 
+        for ind, x in enumerate(self.original_masses[1:]) : random_parameters.append(x + self.uniforms[ind].rvs()) 
         return random_parameters
 
     def get_parameters(self):

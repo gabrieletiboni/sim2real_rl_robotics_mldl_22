@@ -29,7 +29,7 @@ def main():
         env = gym.make('CustomHopper-target-v0')
         
     fnames = []
-    for file in glob.glob("to_test/*"):
+    for file in glob.glob("final_models/*"):
         fnames.append(file)
         
     for modelname in fnames:

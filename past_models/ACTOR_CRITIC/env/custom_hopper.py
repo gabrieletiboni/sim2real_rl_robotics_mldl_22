@@ -8,7 +8,7 @@ import numpy as np
 import gym
 from gym import utils
 from .mujoco_env import MujocoEnv
-from scipy.stats import truncnorm
+from scipy.stats import uniform
 
 class CustomHopper(MujocoEnv, utils.EzPickle):
     def __init__(self, domain=None):
@@ -16,22 +16,24 @@ class CustomHopper(MujocoEnv, utils.EzPickle):
         utils.EzPickle.__init__(self)
 
         self.original_masses = np.copy(self.sim.model.body_mass[1:])    # Default link masses
+        self.domain = domain
+        self.uniforms = [uniform(3.4,4.5), uniform(2.5,3.5), uniform(4.5,5.5)]
 
         if domain == 'source':  # Source environment has an imprecise torso mass (1kg shift)
             self.sim.model.body_mass[1] -= 1.0
-
+        
+        if domain == 'udr':  # Source environment has an imprecise torso mass (1kg shift)
+            self.sim.model.body_mass[1] -= 1.0
+            self.set_random_parameters()
 
     def set_random_parameters(self):
-        """Set random masses
-        TODO
-        """
         self.set_parameters(*self.sample_parameters())
 
     def sample_parameters(self):
-        """Sample masses according to a domain randomization distribution
-        TODO
-        """
-        return
+        random_parameters = []
+        random_parameters.append(self.original_masses[0])
+        for ind, x in enumerate(self.original_masses[1:]) : random_parameters.append(x + self.uniforms[ind].rvs()) 
+        return random_parameters
 
     def get_parameters(self):
         """Get value of mass for each link"""
@@ -75,6 +77,8 @@ class CustomHopper(MujocoEnv, utils.EzPickle):
         qpos = self.init_qpos + self.np_random.uniform(low=-.005, high=.005, size=self.model.nq)
         qvel = self.init_qvel + self.np_random.uniform(low=-.005, high=.005, size=self.model.nv)
         self.set_state(qpos, qvel)
+        if self.domain == "udr": self.set_random_parameters()
+
         return self._get_obs()
 
     def viewer_setup(self):
@@ -132,5 +136,12 @@ gym.envs.register(
         entry_point="%s:CustomHopper" % __name__,
         max_episode_steps=500,
         kwargs={"domain": "target"}
+)
+
+gym.envs.register(
+        id="CustomHopper-udr-v0",
+        entry_point="%s:CustomHopper" % __name__,
+        max_episode_steps=500,
+        kwargs={"domain": "udr"}
 )
 

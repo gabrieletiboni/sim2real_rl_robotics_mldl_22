@@ -28,7 +28,7 @@ def main():
 
     model = TRPO('MlpPolicy', env, verbose = 1)
 
-    model.learn(total_timesteps = 1000000)
+    model.learn(total_timesteps = 500000)
 
     model.save("trpo_udr_model.mdl")
 
