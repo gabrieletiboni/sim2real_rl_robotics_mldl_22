@@ -54,7 +54,7 @@ def main():
                     totalreward = 0
                  
         with open("results.txt", "a") as f:  
-            f.write(f"{modelname},{np.mean(allrewards)},{np.sqrt(np.var(allrewards))}\n") 
+            f.write(f"{modelname.replace('-',',').replace('.mdl','')},{np.mean(allrewards)},{np.sqrt(np.var(allrewards))}\n") 
             print(f"Model: {modelname}\n")
             print(f"Average reward: {np.mean(allrewards)}\n")
             print(f"Average reward stdev: {np.sqrt(np.var(allrewards))}\n")

@@ -11,6 +11,7 @@ from stable_baselines3.common.callbacks import BaseCallback
 import os
 from stable_baselines3.common.monitor import Monitor
 import datetime
+from itertools import product
 
 def target_domain_return(n, target_env, policy):
     env = target_env
@@ -51,13 +52,13 @@ class CustomCallback(BaseCallback):
 
 
 class DomainParametersDistributions():
-    def __init__(self, env: gym.Env) -> None:
+    def __init__(self, env: gym.Env, bounds) -> None:
         self.torso_mass = env.env.get_parameters()[0]
         self.thigha, self.thighb = env.env.get_parameters()[1]-1, env.env.get_parameters()[1]+1
         self.lega, self.legb = env.env.get_parameters()[2]-1, env.env.get_parameters()[2]-1+1
         self.foota, self.footb = env.env.get_parameters()[3]-1, env.env.get_parameters()[3]+1
         self.jreals = torch.empty((1,1), dtype=torch.double)
-        self.bounds = torch.tensor([[2.,4.,1.,3.,2.,5.],[4.,8.,2.5,5.,4.,7.]], dtype=torch.double)
+        self.bounds = bounds
 
     def initialization_phase(self, n_params):
         self.domain_distr_param = torch.empty((1,6), dtype=torch.double)
@@ -89,10 +90,6 @@ class DomainParametersDistributions():
 
     def optimize_acq(self):
         # Source domain base params [2.53429174 3.92699082 2.71433605 5.0893801 ]
-        
-        bounds = torch.tensor([[2.,4.,1.,3.,2.,5.],[4.,8.,2.5,5.,4.,7.]], dtype=torch.double)
-        
-        #bounds = torch.tensor([[0.25,0.25,0.25,0.25,0.25,0.25],[10,10,10,10,10,10]], dtype=torch.double)
 
         candidate, _ = botorch.optim.optimize_acqf(self.UCB, bounds=self.bounds, q=1, num_restarts=200, raw_samples=512)
         torch.cat((self.domain_distr_param,candidate), dim=0)
@@ -129,16 +126,38 @@ class DomainParametersDistributions():
 # Go on stable-baseline webside and implement a custom callback function to do some logging
 # Use callbacks to save the best performiong model
 
+def bound(low, mult):
+    if low:
+        input = [3.4,4.4,2.2,3.2,4.5,5.5]
+    else:
+        input = [3.9,4.4,2.7,3.2,5,5.5]
+    for ind, el in enumerate(input):
+        if ind % 2 == 0 and low:
+            input[ind] = el*mult
+        elif ind % 2 and not low:
+            input[ind] = el*mult
+    return list(input)
 
 
 def main():
 
-    init_steps_t = [5,10]
-    total_timesteps_t = [5000,10000,20000]
-    learning_rate_t = [0.001,0.01]
+    torch.device("cpu")
+
+    init_steps_t = [5]
+    total_timesteps_t = [10000]
+    learning_rate_t = [0.01]
     # We can add gamma
 
-    for (init_steps, total_timesteps, learning_rate) in [(a,b,c) for a in init_steps_t for b in total_timesteps_t for c in learning_rate_t]:
+    # torch.tensor([[2.,4.,1.,3.,2.,5.],[4.,8.,2.5,5.,4.,7.]], dtype=torch.double)
+
+    # Source domain base params [3.92699082 2.71433605 5.0893801 ]
+    bounds_t = [torch.tensor([bound(True, 0.2),bound(False, 1.8)], dtype=torch.double)]
+
+    k=0 
+
+    for x in product(*[init_steps_t, total_timesteps_t, learning_rate_t, bounds_t]):
+
+        init_steps, total_timesteps, learning_rate, bounds = x[0], x[1], x[2], x[3]
 
         now = datetime.datetime.now().strftime('%Y%m%d-%H%M')
         log_dir = f"logs/{now}-{init_steps}-{total_timesteps}-{learning_rate}/"
@@ -155,9 +174,7 @@ def main():
         env = Monitor(env, log_source)
         target_env = Monitor(target_env, log_target)
 
-        domain_dist_params = DomainParametersDistributions(env)
-
-        torch.device("cpu")
+        domain_dist_params = DomainParametersDistributions(env, bounds)
 
         """
             Training
@@ -166,7 +183,6 @@ def main():
         policy = TRPO('MlpPolicy', env, verbose = 1, seed = 42, learning_rate=learning_rate)
 
         #Initialization
-        init_steps = 5
         init_env_params = domain_dist_params.initialization_phase(init_steps)
 
         #callback = CustomCallback(log_dir)
@@ -195,7 +211,8 @@ def main():
             domain_dist_params.fit_gaussian()
 
 
-        policy.save(f"past_models_bayrn/trpo_bayrn_model-{init_steps}-{total_timesteps}-{learning_rate}-{Jreal}.mdl")
+        policy.save(f"to_test/trpo_bayrn_model-{init_steps}-{total_timesteps}-{learning_rate}-{Jreal}-{k}.mdl")
+        k+=1
 
 
 if __name__ == "__main__":
