@@ -37,6 +37,9 @@ def main():
         totalreward = 0
         allrewards = []
         model = TRPO.load(modelname, env)
+
+        with open("results.txt", "a") as f:  
+            f.write("MODELNAME,REWARD\n")
         
         for i in range(100):
             done = False
@@ -51,13 +54,14 @@ def main():
                 if done:
                     obs = env.reset()
                     allrewards.append(totalreward)
+                    with open("results.txt", "a") as f:  
+                        f.write(f"{modelname.split('/')[-1].replace('.mdl','')},{totalreward}\n")
                     totalreward = 0
                  
-        with open("results.txt", "a") as f:  
-            f.write(f"{modelname.replace('-',',').replace('.mdl','')},{np.mean(allrewards)},{np.sqrt(np.var(allrewards))}\n") 
-            print(f"Model: {modelname}\n")
-            print(f"Average reward: {np.mean(allrewards)}\n")
-            print(f"Average reward stdev: {np.sqrt(np.var(allrewards))}\n")
+             
+        print(f"Model: {modelname}\n")
+        print(f"Average reward: {np.mean(allrewards)}\n")
+        print(f"Average reward stdev: {np.sqrt(np.var(allrewards))}\n")
 
 if __name__ == "__main__":
     main()
